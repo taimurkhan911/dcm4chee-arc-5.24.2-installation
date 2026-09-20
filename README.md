@@ -117,6 +117,8 @@ After command completed follow the following link
 
 (http://localhost:8080/dcm4chee-arc/ui2)
 
+This console window is for **first-time setup only** (Step 14 deploy). For live / production, do **not** keep `standalone.bat` open. After deploy, close that window and install the Windows service (Step 17). If WildFly was copied to `D:\wildfly`, use `D:\wildfly\bin\standalone.bat -c dcm4chee-arc.xml` instead.
+
 ### Step 14 
 http://127.0.0.1:9990/console/index.html#deployments
 goto the above page and import the following 2 files in it.
@@ -138,6 +140,65 @@ Install ApacheTomCat and oviyam2.
 
 
 .![image](/screenshots/oviyam2-config.png)
+
+### Step 17
+**Install dcm4chee as a Windows service** (recommended for live). Do **not** double-click `service.bat` (that only prints help). Close the `standalone.bat` window first — do not run the console and the service together.
+
+Open **Command Prompt as Administrator**. Use `C:\wildfly` or `D:\wildfly` — whichever folder you copied in Step 12 / NOTE.
+
+**Create the service (once):**
+```
+cd /d D:\wildfly\bin\service
+
+service.bat install /startup /config dcm4chee-arc.xml /name dcm4chee /display "dcm4chee Archive" /desc "dcm4chee-arc 5.24 WildFly 24"
+```
+
+`/config dcm4chee-arc.xml` is the **file name only** (same as `-c dcm4chee-arc.xml`). Do not pass the full path. The service loads `...\standalone\configuration\dcm4chee-arc.xml`. `/startup` = start on Windows boot.
+
+If WildFly is on `C:`:
+```
+cd /d C:\wildfly\bin\service
+
+service.bat install /startup /config dcm4chee-arc.xml /name dcm4chee /display "dcm4chee Archive" /desc "dcm4chee-arc 5.24 WildFly 24"
+```
+
+**Start the service:**
+```
+cd /d D:\wildfly\bin\service
+service.bat start /name dcm4chee
+```
+or:
+```
+net start dcm4chee
+```
+
+**Check:**
+```
+sc query dcm4chee
+```
+You want `RUNNING`. Then open `D:\wildfly\standalone\log\server.log` (or `C:\wildfly\...`) and confirm WildFly started.
+
+**Stop:**
+```
+net stop dcm4chee
+```
+or:
+```
+cd /d D:\wildfly\bin\service
+service.bat stop /name dcm4chee
+```
+
+Do **not** use **Restart** in Windows Services (`services.msc`) — it can hang on Stopping. Stop, confirm Java is gone, then start again.
+
+If install says the service already exists:
+```
+cd /d D:\wildfly\bin\service
+net stop dcm4chee
+service.bat uninstall /name dcm4chee
+```
+Then run the `install` command again, then `start`.
+
+JAVA_HOME for the service must be **JDK 11** (Step 2). Do not let the service pick a newer Java from PATH.
 
 #### Please NOTE
 ```
