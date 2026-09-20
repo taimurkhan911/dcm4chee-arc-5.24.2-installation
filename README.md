@@ -16,11 +16,10 @@ Then set **JAVA_HOME** as a **Windows System variable** (needed for the dcm4chee
 2. **Advanced** → **Environment Variables**  
 3. Under **System variables** (not User variables) → **New**:
    - Variable name: `JAVA_HOME`
-   - Variable value: `C:\Program Files\Java\jdk-11.0.12`  
-     (use the real folder if the installer used a slightly different name, e.g. `jdk-11.0.1`)
+   - Variable value: `C:\Program Files\Java\jdk-11.0.12\bin`
 4. In **System variables** → select **Path** → **Edit**:
-   - **New** → `%JAVA_HOME%\bin`
-   - Move `%JAVA_HOME%\bin` to the **top**
+   - **New** → `C:\Program Files\Java\jdk-11.0.12\bin`
+   - Move `C:\Program Files\Java\jdk-11.0.12\bin` to the **top**
    - If you see `C:\Program Files\Common Files\Oracle\Java\javapath`, that can force **Java 25**. Move it below JDK 11, or the service / `java -version` may pick the wrong Java.
 5. Click OK on all windows. **Open a new** Command Prompt (old windows keep the old PATH) and check:
 
@@ -29,7 +28,7 @@ echo %JAVA_HOME%
 java -version
 ```
 
-`JAVA_HOME` must print the JDK 11 folder. `java -version` must show **11**, not 17/21/25.
+`JAVA_HOME` must print `C:\Program Files\Java\jdk-11.0.12\bin`. `java -version` must show **11**, not 17/21/25.
 
 WildFly also pins JDK 11 in `standalone.conf.bat`:
 
