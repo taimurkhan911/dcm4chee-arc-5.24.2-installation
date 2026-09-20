@@ -10,6 +10,35 @@ git clone https://github.com/taimurkhan911/dcm4chee-arc-5.24.2-installation.git
 **Install JDK 11**. 
 You can find JDK **jdk-11.0.12_windows-x64_bin.exe** file in **dcm4chee-arc-5.24.2-installation** directory. run the exe file and complete the installation.
 
+Then set **JAVA_HOME** as a **Windows System variable** (needed for the dcm4chee Windows service). Do this after JDK 11 is installed:
+
+1. `Win + R` → type `sysdm.cpl` → Enter  
+2. **Advanced** → **Environment Variables**  
+3. Under **System variables** (not User variables) → **New**:
+   - Variable name: `JAVA_HOME`
+   - Variable value: `C:\Program Files\Java\jdk-11.0.12`  
+     (use the real folder if the installer used a slightly different name, e.g. `jdk-11.0.1`)
+4. In **System variables** → select **Path** → **Edit**:
+   - **New** → `%JAVA_HOME%\bin`
+   - Move `%JAVA_HOME%\bin` to the **top**
+   - If you see `C:\Program Files\Common Files\Oracle\Java\javapath`, that can force **Java 25**. Move it below JDK 11, or the service / `java -version` may pick the wrong Java.
+5. Click OK on all windows. **Open a new** Command Prompt (old windows keep the old PATH) and check:
+
+```
+echo %JAVA_HOME%
+java -version
+```
+
+`JAVA_HOME` must print the JDK 11 folder. `java -version` must show **11**, not 17/21/25.
+
+WildFly also pins JDK 11 in `standalone.conf.bat`:
+
+```
+set "JAVA_HOME=C:\Program Files\Java\jdk-11.0.12"
+```
+
+Keep that line. If Windows `JAVA_HOME` and this line disagree, fix both to JDK 11. After changing environment variables, **restart the dcm4chee service** so it picks up JAVA_HOME.
+
 ### Step 3 
 **Create database with name pacsdb**. 
 and Import SQL file **pacsdb.sql** into it,You can find SQL file  **pacsdb.sql** file in **dcm4chee-arc-5.24.2-installation** directory.
@@ -199,6 +228,75 @@ service.bat uninstall /name dcm4chee
 Then run the `install` command again, then `start`.
 
 JAVA_HOME for the service must be **JDK 11** (Step 2). Do not let the service pick a newer Java from PATH.
+
+### Step 18
+**Copy two helper scripts into `wildfly\bin`.** Windows **Restart** in Services (`services.msc`) and `net stop dcm4chee` can hang on **STOP_PENDING** while **Java stays running** on ports 8085 / 11112. These two files kill WildFly Java, then start the service again.
+
+Create (or copy) these files next to `standalone.bat`:
+
+- `D:\wildfly\bin\stop-dcm4chee-java.bat` — kill leftover WildFly `java.exe` only  
+- `D:\wildfly\bin\restart-dcm4chee.bat` — kill Java + service wrapper, then `net start dcm4chee`
+
+If WildFly is on `C:`, put them in `C:\wildfly\bin\` and change `D:\wildfly` in the restart script to `C:\wildfly`.
+
+**Do not double-click Restart in Services.** For a live restart, run **as Administrator**:
+
+```
+D:\wildfly\bin\restart-dcm4chee.bat
+```
+
+To only kill leftover Java (service already STOPPED, but 8085/11112 still listening):
+
+```
+D:\wildfly\bin\stop-dcm4chee-java.bat
+```
+
+Then `net start dcm4chee` if the service is not running.
+
+**`stop-dcm4chee-java.bat`**
+```
+@echo off
+setlocal
+REM Force-stop WildFly Java. Do not use "net stop" here.
+echo Killing WildFly Java...
+powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='java.exe'\" | Where-Object { $_.CommandLine -match 'jboss-modules\\.jar' } | ForEach-Object { Write-Host ('Killing Java PID ' + $_.ProcessId); Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+echo Java stop finished.
+endlocal
+```
+
+**`restart-dcm4chee.bat`**
+```
+@echo off
+setlocal EnableExtensions
+REM Restart service AND Java. Never uses "net stop" (that hangs on STOP_PENDING).
+REM Run as Administrator.
+
+echo === Killing WildFly Java ===
+powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='java.exe'\" | Where-Object { $_.CommandLine -match 'jboss-modules\\.jar' } | ForEach-Object { Write-Host ('Killing Java PID ' + $_.ProcessId); Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+
+echo === Killing service wrapper if still running ===
+for /f "tokens=3" %%A in ('sc queryex dcm4chee ^| findstr /C:"PID"') do (
+  if not "%%A"=="0" (
+    echo Killing service PID %%A
+    taskkill /PID %%A /F /T >nul 2>&1
+  )
+)
+taskkill /F /IM wildfly-service.exe /T >nul 2>&1
+
+echo Waiting for service to report STOPPED...
+timeout /t 5 /nobreak >nul
+
+echo === Starting Windows service (this starts Java) ===
+net start dcm4chee
+
+echo === Status ===
+sc query dcm4chee
+echo Check D:\wildfly\standalone\log\server.log for WFLYSRV0025
+pause
+endlocal
+```
+
+After restart, confirm `sc query dcm4chee` is `RUNNING` and `server.log` contains `WFLYSRV0025` (WildFly started).
 
 #### Please NOTE
 ```
